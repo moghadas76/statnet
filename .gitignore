@@ -1,3 +1,4 @@
 data/
 garage/
 *.ipynb
+__pycache__/

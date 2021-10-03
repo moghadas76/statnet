@@ -10,6 +10,7 @@ from model import *
 parser = argparse.ArgumentParser()
 parser.add_argument('--device',type=str,default='cuda:3',help='')
 parser.add_argument('--data',type=str,default='data/METR-LA',help='data path')
+parser.add_argument('--model',type=str,default='spatial_temporal',help='model_config')
 parser.add_argument('--adjdata',type=str,default='data/sensor_graph/adj_mx.pkl',help='adj data path')
 parser.add_argument('--adjtype',type=str,default='doubletransition',help='adj type')
 parser.add_argument('--gcn_bool',action='store_true',help='whether to add graph convolution layer')
@@ -36,10 +37,7 @@ args = parser.parse_args()
 
 
 def main():
-    #set seed
-    #torch.manual_seed(args.seed)
-    #np.random.seed(args.seed)
-    #load data
+
     device = torch.device(args.device)
     sensor_ids, sensor_id_to_ind, adj_mx = util.load_adj(args.adjdata,args.adjtype)
     dataloader = util.load_dataset(args.data, args.batch_size, args.batch_size, args.batch_size)
@@ -60,9 +58,8 @@ def main():
 
     engine = trainer(scaler, args.in_dim, args.seq_length, args.num_nodes, args.nhid, args.dropout,
                          args.learning_rate, args.weight_decay, device, supports, args.gcn_bool, args.addaptadj,
-                         adjinit)
+                         adjinit, args.model)
 
-    # engine.model.load_state_dict(torch.load("/home/seyed/Desktop/gvi/classic/Graph-WaveNet/garage/metr_epoch_5_3.02sp.pth"))
     print("start training...",flush=True)
     his_loss =[]
     val_time = []
@@ -130,8 +127,7 @@ def main():
     
 
     engine.model.load_state_dict(torch.load(args.save+"_epoch_"+str(bestid+1)+"_"+str(round(his_loss[bestid],2))+"sp_st.pth"))
-    # engine.model.load_state_dict(torch.load("/home/seyed/Desktop/gvi/classic/Graph-WaveNet/garage/metr_epoch_100_2.81.pth"))
-
+ 
 
 
     outputs = []
@@ -150,8 +146,6 @@ def main():
 
 
     print("Training finished")
-    # print("The valid loss on best model is", str(round(his_loss[bestid],4)))
-
 
     amae = []
     amape = []
@@ -169,7 +163,6 @@ def main():
     log = 'On average over 12 horizons, Test MAE: {:.4f}, Test MAPE: {:.4f}, Test RMSE: {:.4f}'
     print(log.format(np.mean(amae),np.mean(amape),np.mean(armse)))
     torch.save(engine.model.state_dict(), args.save+"_exp"+str(args.expid)+"_best_"+str(round(his_loss[bestid],2))+"sp.pth")
-    # torch.save(engine.model.state_dict(), args.save+"_exp"+str(args.expid)+"_best_2.81.pth")
 
 
 

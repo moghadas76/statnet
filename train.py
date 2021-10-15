@@ -5,6 +5,7 @@ import time
 import util
 import matplotlib.pyplot as plt
 from engine import trainer
+import wandb
 from model import *
 
 parser = argparse.ArgumentParser()
@@ -41,12 +42,19 @@ def main():
     #np.random.seed(args.seed)
     #load data
     device = torch.device(args.device)
+    wandb.init(project='statnet', entity='moghadas76')
     sensor_ids, sensor_id_to_ind, adj_mx = util.load_adj(args.adjdata,args.adjtype)
     dataloader = util.load_dataset(args.data, args.batch_size, args.batch_size, args.batch_size)
     scaler = dataloader['scaler']
     supports = [torch.tensor(i).to(device) for i in adj_mx]
 
     print(args)
+    config = wandb.config
+    config.learning_rate = 0.01
+    config.dropout = 0.3
+    config.weight_decay = 0.0001
+    config.nhid = 32
+
 
     if args.randomadj:
         adjinit = None
@@ -67,6 +75,7 @@ def main():
     his_loss =[]
     val_time = []
     train_time = []
+    wandb.watch(engine.model)
     for i in range(1,args.epochs+1):
         #if i % 10 == 0:
             #lr = max(0.000002,args.learning_rate * (0.1 ** (i // 10)))
@@ -119,7 +128,13 @@ def main():
         mvalid_mape = np.mean(valid_mape)
         mvalid_rmse = np.mean(valid_rmse)
         his_loss.append(mvalid_loss)
-
+        wandb.log({"train_MAE": mtrain_loss})
+        wandb.log({"train_MAPE": mtrain_mape})
+        wandb.log({"train_RMSE": mtrain_rmse})
+        wandb.log({"validation_Loss": mvalid_loss})
+        wandb.log({"validation_RMSE": mvalid_mape})
+        wandb.log({"validation_RMSE": mvalid_rmse})
+        wandb.log({"epoch": i})
         log = 'Epoch: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, Train RMSE: {:.4f}, Valid Loss: {:.4f}, Valid MAPE: {:.4f}, Valid RMSE: {:.4f}, Training Time: {:.4f}/epoch'
         print(log.format(i, mtrain_loss, mtrain_mape, mtrain_rmse, mvalid_loss, mvalid_mape, mvalid_rmse, (t2 - t1)),flush=True)
         torch.save(engine.model.state_dict(), args.save+"_epoch_"+str(i)+"_"+str(round(mvalid_loss,2))+"sp_st.pth")

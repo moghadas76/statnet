@@ -42,7 +42,9 @@ def main():
     #np.random.seed(args.seed)
     #load data
     device = torch.device(args.device)
-    wandb.init(project='statnet', entity='moghadas76')
+
+    wandb.init(project='gpt3', entity='aufl')
+
     sensor_ids, sensor_id_to_ind, adj_mx = util.load_adj(args.adjdata,args.adjtype)
     dataloader = util.load_dataset(args.data, args.batch_size, args.batch_size, args.batch_size)
     scaler = dataloader['scaler']
@@ -70,13 +72,15 @@ def main():
                          args.learning_rate, args.weight_decay, device, supports, args.gcn_bool, args.addaptadj,
                          adjinit)
 
-    # engine.model.load_state_dict(torch.load("/home/seyed/Desktop/gvi/classic/Graph-WaveNet/garage/metr_epoch_5_3.02sp.pth"))
+    # engine.model.load_state_dict(torch.load("./garage/metr_epoch_55_2.77sp_st.pth"))
     print("start training...",flush=True)
     his_loss =[]
     val_time = []
     train_time = []
-    wandb.watch(engine.model)
-    for i in range(1,args.epochs+1):
+
+    # wandb.watch(engine.model)
+    
+    for i in range(1, args.epochs+1):
         #if i % 10 == 0:
             #lr = max(0.000002,args.learning_rate * (0.1 ** (i // 10)))
             #for g in engine.optimizer.param_groups:
@@ -91,6 +95,7 @@ def main():
             trainx= trainx.transpose(1, 3)
             trainy = torch.Tensor(y).to(device)
             trainy = trainy.transpose(1, 3)
+            # import pdb;pdb.set_trace()
             metrics = engine.train(trainx, trainy[:,0,:,:])
             train_loss.append(metrics[0])
             train_mape.append(metrics[1])
@@ -132,7 +137,7 @@ def main():
         wandb.log({"train_MAPE": mtrain_mape})
         wandb.log({"train_RMSE": mtrain_rmse})
         wandb.log({"validation_Loss": mvalid_loss})
-        wandb.log({"validation_RMSE": mvalid_mape})
+        wandb.log({"validation_mape": mvalid_mape})
         wandb.log({"validation_RMSE": mvalid_rmse})
         wandb.log({"epoch": i})
         log = 'Epoch: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, Train RMSE: {:.4f}, Valid Loss: {:.4f}, Valid MAPE: {:.4f}, Valid RMSE: {:.4f}, Training Time: {:.4f}/epoch'
@@ -144,8 +149,8 @@ def main():
     bestid = np.argmin(his_loss)
     
 
-    engine.model.load_state_dict(torch.load(args.save+"_epoch_"+str(bestid+1)+"_"+str(round(his_loss[bestid],2))+"sp_st.pth"))
-    # engine.model.load_state_dict(torch.load("/home/seyed/Desktop/gvi/classic/Graph-WaveNet/garage/metr_epoch_100_2.81.pth"))
+    # engine.model.load_state_dict(torch.load(args.save+"_epoch_"+str(bestid+1)+"_"+str(round(his_loss[bestid],2))+"sp_st.pth"))
+    # # engine.model.load_state_dict(torch.load("/home/seyed/Desktop/gvi/classic/Graph-WaveNet/garage/metr_epoch_100_2.81.pth"))
 
 
 
@@ -165,7 +170,7 @@ def main():
 
 
     print("Training finished")
-    # print("The valid loss on best model is", str(round(his_loss[bestid],4)))
+    # # print("The valid loss on best model is", str(round(his_loss[bestid],4)))
 
 
     amae = []
@@ -183,7 +188,7 @@ def main():
 
     log = 'On average over 12 horizons, Test MAE: {:.4f}, Test MAPE: {:.4f}, Test RMSE: {:.4f}'
     print(log.format(np.mean(amae),np.mean(amape),np.mean(armse)))
-    torch.save(engine.model.state_dict(), args.save+"_exp"+str(args.expid)+"_best_"+str(round(his_loss[bestid],2))+"sp.pth")
+    # torch.save(engine.model.state_dict(), args.save+"_exp"+str(args.expid)+"_best_"+str(round(his_loss[bestid],2))+"sp.pth")
     # torch.save(engine.model.state_dict(), args.save+"_exp"+str(args.expid)+"_best_2.81.pth")
 
 

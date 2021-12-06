@@ -5,7 +5,7 @@ import time
 import util
 import matplotlib.pyplot as plt
 from engine import trainer
-import wandb
+# import wandb
 from model import *
 
 parser = argparse.ArgumentParser()
@@ -22,10 +22,10 @@ parser.add_argument('--nhid',type=int,default=32,help='')
 parser.add_argument('--in_dim',type=int,default=2,help='inputs dimension')
 parser.add_argument('--num_nodes',type=int,default=207,help='number of nodes')
 parser.add_argument('--batch_size',type=int,default=64,help='batch size')
-parser.add_argument('--learning_rate',type=float,default=0.001,help='learning rate')
+parser.add_argument('--learning_rate',type=float,default=0.0015,help='learning rate')
 parser.add_argument('--dropout',type=float,default=0.3,help='dropout rate')
 parser.add_argument('--weight_decay',type=float,default=0.0001,help='weight decay rate')
-parser.add_argument('--epochs',type=int,default=100,help='')
+parser.add_argument('--epochs',type=int,default=150,help='')
 parser.add_argument('--print_every',type=int,default=50,help='')
 #parser.add_argument('--seed',type=int,default=99,help='random seed')
 parser.add_argument('--save',type=str,default='./garage/metr',help='save path')
@@ -33,7 +33,22 @@ parser.add_argument('--expid',type=int,default=1,help='experiment id')
 
 args = parser.parse_args()
 
+nV = 207
+INF = 999
 
+# Algorithm 
+def floyd(G):
+    dist = list(map(lambda p: list(map(lambda q: q, p)), G))
+    for i in range(207):
+        for j in range(207):
+            if G[i][j] == 0:
+                G[i][j] = INF
+    # Adding vertices individually
+    for r in range(nV):
+        for p in range(nV):
+            for q in range(nV):
+                dist[p][q] = min(dist[p][q], dist[p][r] + dist[r][q])
+    return dist
 
 
 def main():
@@ -43,19 +58,21 @@ def main():
     #load data
     device = torch.device(args.device)
 
-    wandb.init(project='gpt3', entity='aufl')
+    # wandb.init(project='gpt3', entity='aufl')
 
     sensor_ids, sensor_id_to_ind, adj_mx = util.load_adj(args.adjdata,args.adjtype)
+    _,_, adj = util.load_adj(args.adjdata, None)
+    centrality = util.calculate_centrality(adj)
     dataloader = util.load_dataset(args.data, args.batch_size, args.batch_size, args.batch_size)
     scaler = dataloader['scaler']
     supports = [torch.tensor(i).to(device) for i in adj_mx]
 
     print(args)
-    config = wandb.config
-    config.learning_rate = 0.01
-    config.dropout = 0.3
-    config.weight_decay = 0.0001
-    config.nhid = 32
+    # config = wandb.config
+    # config.learning_rate = 0.01
+    # config.dropout = 0.3
+    # config.weight_decay = 0.0001
+    # config.nhid = 32
 
 
     if args.randomadj:
@@ -70,9 +87,11 @@ def main():
 
     engine = trainer(scaler, args.in_dim, args.seq_length, args.num_nodes, args.nhid, args.dropout,
                          args.learning_rate, args.weight_decay, device, supports, args.gcn_bool, args.addaptadj,
-                         adjinit)
+                         adjinit, centrality)
 
-    # engine.model.load_state_dict(torch.load("./garage/metr_epoch_55_2.77sp_st.pth"))
+    choices = []
+
+    # engine.model.load_state_dict(torch.load("./garage/metr_epoch_89_2.79sp_st.pth"))
     print("start training...",flush=True)
     his_loss =[]
     val_time = []
@@ -80,7 +99,7 @@ def main():
 
     # wandb.watch(engine.model)
     
-    for i in range(1, args.epochs+1):
+    for i in range(1, 101):
         #if i % 10 == 0:
             #lr = max(0.000002,args.learning_rate * (0.1 ** (i // 10)))
             #for g in engine.optimizer.param_groups:
@@ -133,13 +152,13 @@ def main():
         mvalid_mape = np.mean(valid_mape)
         mvalid_rmse = np.mean(valid_rmse)
         his_loss.append(mvalid_loss)
-        wandb.log({"train_MAE": mtrain_loss})
-        wandb.log({"train_MAPE": mtrain_mape})
-        wandb.log({"train_RMSE": mtrain_rmse})
-        wandb.log({"validation_Loss": mvalid_loss})
-        wandb.log({"validation_mape": mvalid_mape})
-        wandb.log({"validation_RMSE": mvalid_rmse})
-        wandb.log({"epoch": i})
+        # wandb.log({"train_MAE": mtrain_loss})
+        # wandb.log({"train_MAPE": mtrain_mape})
+        # wandb.log({"train_RMSE": mtrain_rmse})
+        # wandb.log({"validation_Loss": mvalid_loss})
+        # wandb.log({"validation_mape": mvalid_mape})
+        # wandb.log({"validation_RMSE": mvalid_rmse})
+        # wandb.log({"epoch": i})
         log = 'Epoch: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, Train RMSE: {:.4f}, Valid Loss: {:.4f}, Valid MAPE: {:.4f}, Valid RMSE: {:.4f}, Training Time: {:.4f}/epoch'
         print(log.format(i, mtrain_loss, mtrain_mape, mtrain_rmse, mvalid_loss, mvalid_mape, mvalid_rmse, (t2 - t1)),flush=True)
         torch.save(engine.model.state_dict(), args.save+"_epoch_"+str(i)+"_"+str(round(mvalid_loss,2))+"sp_st.pth")

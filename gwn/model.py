@@ -1306,7 +1306,7 @@ class gcn(nn.Module):
 
 
 class gwnet(nn.Module):
-    def __init__(self, device, num_nodes, dropout=0.3, supports=None, gcn_bool=True, addaptadj=True, aptinit=None, in_dim=2,out_dim=12,residual_channels=32,dilation_channels=32,skip_channels=256,end_channels=512,kernel_size=2,blocks=4,layers=2):
+    def __init__(self, device, num_nodes, dropout=0.3, supports=None, gcn_bool=True, addaptadj=True, aptinit=None, in_dim=2,out_dim=12,residual_channels=32,dilation_channels=32,skip_channels=256,end_channels=512,kernel_size=2,blocks=4,layers=2, sp=None, centrality=None):
         super(gwnet, self).__init__()
         self.dropout = dropout
         self.blocks = blocks
@@ -1334,7 +1334,7 @@ class gwnet(nn.Module):
         self.t_2 = nn.Parameter(torch.empty(64,1,1,2))
         nn.init.uniform_(self.t_1,-(1.0 / np.sqrt(2)), (1.0 / np.sqrt(2)))
 
-        self.sa = nn.MultiheadAttention(32,8)
+        # self.sa = nn.MultiheadAttention(32,8)
         # self.t_h_sp = nn.Parameter(torch.empty((207)))
         # nn.init.uniform_(self.t_h_sp, -(1.0 / np.sqrt(2)), (1.0 / np.sqrt(2)))
         self.h_x_sp = nn.Parameter(torch.empty(64,13,207))
@@ -1418,8 +1418,10 @@ class gwnet(nn.Module):
                                     bias=True)
         
         self.linear = nn.Linear(220,256)
-
         self.receptive_field = receptive_field
+        self.centrality_linear = nn.Parameter(F.softmax(torch.Tensor(centrality).to(device)).reshape(1,207,1), requires_grad=True)
+        self.layer_norm = nn.LayerNorm([256, 207,1])
+        # nn.init.constant_(self.centrality_linear, F.softmax(torch.Tensor(centrality)).reshape(1,207,1))
 
 
 
@@ -1430,6 +1432,7 @@ class gwnet(nn.Module):
             x = nn.functional.pad(input,(self.receptive_field-in_len,0,0,0))
         else:
             x = input
+# NEWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
         x = self.start_conv(x)
         skip = 0
 
@@ -1439,9 +1442,9 @@ class gwnet(nn.Module):
             adp = F.softmax(F.relu(torch.mm(self.nodevec1, self.nodevec2)), dim=1)
             new_supports = self.supports + [adp]
 
-        # import pdb;pdb.set_trace()
-        x, _ = self.sa(x.view(64,207*13,32), x.view(64,207*13,32), x.view(64,207*13,32))
-        x = x.view(64, 32, 207, 13)
+        x += self.centrality_linear
+        # x, _ = self.sa(x.view(64,207*13,32), x.view(64,207*13,32), x.view(64,207*13,32))
+        # x = x.view(64, 32, 207, 13)
         # WaveNet layers
         for i in range(self.blocks * self.layers):
 
@@ -1488,13 +1491,12 @@ class gwnet(nn.Module):
 
 
             x = self.bn[i](x)
-
         x = F.relu(skip)
+        x = self.layer_norm(x)
         ttt = self.temporal_attention(tmp).matmul(self.h_x_sp)
         concat = torch.cat((self.spatial_attention(tmp),ttt),1).view(64,207,220)
         linear_out = self.linear(concat).view(64,256,207).unsqueeze(-1)
-        # x shape = torch.Size([64, 256, 207, 1])
-        # x = x + self.s_we * torch.einsum('nc,cva->nva', ( @ self.t_h_sp , self.h_x_sp)).contiguous().unsqueeze(-1)
+        # linear_handy = self.linear_hand(1 - F.softmax(self.shotest_path.view(1, 207, 207)))
         x = x + self.t_we * linear_out
         x = F.relu(self.end_conv_1(x))
         x = self.end_conv_2(x)

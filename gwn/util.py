@@ -81,6 +81,12 @@ def asym_adj(adj):
     d_mat= sp.diags(d_inv)
     return d_mat.dot(adj).astype(np.float32).todense()
 
+
+def calculate_centrality(c):
+    adj = sp.coo_matrix(c)
+    return np.array(adj.sum(0)).ravel() / np.array(adj.sum(1)).ravel()
+
+
 def calculate_normalized_laplacian(adj):
     """
     # L = D^-1/2 (D-A) D^-1/2 = I - D^-1/2 A D^-1/2
@@ -136,8 +142,9 @@ def load_adj(pkl_filename, adjtype):
     elif adjtype == "identity":
         adj = [np.diag(np.ones(adj_mx.shape[0])).astype(np.float32)]
     else:
+        return sensor_ids, sensor_id_to_ind, adj_mx
         error = 0
-        assert error, "adj type not defined"
+        # assert error, "adj type not defined"
     return sensor_ids, sensor_id_to_ind, adj
 
 

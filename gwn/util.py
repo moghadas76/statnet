@@ -84,7 +84,11 @@ def asym_adj(adj):
 
 def calculate_centrality(c):
     adj = sp.coo_matrix(c)
-    return np.array(adj.sum(0)).ravel() / np.array(adj.sum(1)).ravel()
+    result = np.array(adj.sum(0)).ravel() / np.array(adj.sum(1)).ravel()
+    for i, x in np.ndenumerate(result):
+        if x != 0.0 and x > 1/x:
+            result[i] = 1/x
+    return result
 
 
 def calculate_normalized_laplacian(adj):

@@ -1,4 +1,5 @@
 import torch
+import pathlib
 import numpy as np
 import argparse
 import time
@@ -7,6 +8,9 @@ import matplotlib.pyplot as plt
 from engine import trainer
 # import wandb
 from model import *
+from ray import tune
+from ray.tune import CLIReporter
+from ray.tune.schedulers import ASHAScheduler
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--device',type=str,default='cuda:3',help='')
@@ -22,8 +26,8 @@ parser.add_argument('--nhid',type=int,default=32,help='')
 parser.add_argument('--in_dim',type=int,default=2,help='inputs dimension')
 parser.add_argument('--num_nodes',type=int,default=207,help='number of nodes')
 parser.add_argument('--batch_size',type=int,default=64,help='batch size')
-parser.add_argument('--learning_rate',type=float,default=0.0015,help='learning rate')
-parser.add_argument('--dropout',type=float,default=0.3,help='dropout rate')
+parser.add_argument('--learning_rate',type=float,default=0.003,help='learning rate')
+parser.add_argument('--dropout',type=float,default=0.35,help='dropout rate')
 parser.add_argument('--weight_decay',type=float,default=0.0001,help='weight decay rate')
 parser.add_argument('--epochs',type=int,default=150,help='')
 parser.add_argument('--print_every',type=int,default=50,help='')
@@ -66,8 +70,6 @@ def main():
     dataloader = util.load_dataset(args.data, args.batch_size, args.batch_size, args.batch_size)
     scaler = dataloader['scaler']
     supports = [torch.tensor(i).to(device) for i in adj_mx]
-
-    print(args)
     # config = wandb.config
     # config.learning_rate = 0.01
     # config.dropout = 0.3
@@ -88,10 +90,13 @@ def main():
     engine = trainer(scaler, args.in_dim, args.seq_length, args.num_nodes, args.nhid, args.dropout,
                          args.learning_rate, args.weight_decay, device, supports, args.gcn_bool, args.addaptadj,
                          adjinit, centrality)
-
-    choices = []
-
-    # engine.model.load_state_dict(torch.load("./garage/metr_epoch_89_2.79sp_st.pth"))
+    # choices = list(pathlib.Path('./garage/').iterdir())
+    
+    print(f"------------> start loading {str('./garage/metr_epoch_&94_2.77sp_st.pth')}",flush=True)
+    # try:
+    #     engine.model.load_state_dict(torch.load(f"./garage/metr_epoch_&94_2.77sp_st.pth"))
+    # except RuntimeError:
+    #     pass
     print("start training...",flush=True)
     his_loss =[]
     val_time = []
@@ -114,7 +119,6 @@ def main():
             trainx= trainx.transpose(1, 3)
             trainy = torch.Tensor(y).to(device)
             trainy = trainy.transpose(1, 3)
-            # import pdb;pdb.set_trace()
             metrics = engine.train(trainx, trainy[:,0,:,:])
             train_loss.append(metrics[0])
             train_mape.append(metrics[1])
@@ -161,11 +165,11 @@ def main():
         # wandb.log({"epoch": i})
         log = 'Epoch: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, Train RMSE: {:.4f}, Valid Loss: {:.4f}, Valid MAPE: {:.4f}, Valid RMSE: {:.4f}, Training Time: {:.4f}/epoch'
         print(log.format(i, mtrain_loss, mtrain_mape, mtrain_rmse, mvalid_loss, mvalid_mape, mvalid_rmse, (t2 - t1)),flush=True)
-        torch.save(engine.model.state_dict(), args.save+"_epoch_"+str(i)+"_"+str(round(mvalid_loss,2))+"sp_st.pth")
-    print("Average Training Time: {:.4f} secs/epoch".format(np.mean(train_time)))
-    print("Average Inference Time: {:.4f} secs".format(np.mean(val_time)))
+        torch.save(engine.model.state_dict(), args.save+"_epoch_&"+str(i)+"_"+str(round(mvalid_loss,2))+"sp_st.pth")
+    # print("Average Training Time: {:.4f} secs/epoch".format(np.mean(train_time)))
+    # print("Average Inference Time: {:.4f} secs".format(np.mean(val_time)))
     
-    bestid = np.argmin(his_loss)
+    # bestid = np.argmin(his_loss)
     
 
     # engine.model.load_state_dict(torch.load(args.save+"_epoch_"+str(bestid+1)+"_"+str(round(his_loss[bestid],2))+"sp_st.pth"))

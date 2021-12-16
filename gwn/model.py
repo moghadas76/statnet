@@ -1418,11 +1418,13 @@ class gwnet(nn.Module):
                                     bias=True)
         
         self.linear = nn.Linear(220,256)
+        # self.linear2 = nn.Linear(256,256)
+        # self.linear3 = nn.Linear(220,256)
         self.receptive_field = receptive_field
-        self.centrality_linear = nn.Parameter(F.softmax(torch.Tensor(centrality).to(device)).reshape(1,207,1), requires_grad=True)
+        # self.centrality_linear = nn.Parameter(F.softmax(torch.Tensor(centrality).to(device)).reshape(1,207,1), requires_grad=True)
         self.layer_norm = nn.LayerNorm([256, 207,1])
         # nn.init.constant_(self.centrality_linear, F.softmax(torch.Tensor(centrality)).reshape(1,207,1))
-
+        self.bn_final = nn.BatchNorm3d(256, device=device)
 
 
     def forward(self, input):
@@ -1442,7 +1444,7 @@ class gwnet(nn.Module):
             adp = F.softmax(F.relu(torch.mm(self.nodevec1, self.nodevec2)), dim=1)
             new_supports = self.supports + [adp]
 
-        x += self.centrality_linear
+        # x += self.centrality_linear
         # x, _ = self.sa(x.view(64,207*13,32), x.view(64,207*13,32), x.view(64,207*13,32))
         # x = x.view(64, 32, 207, 13)
         # WaveNet layers
@@ -1498,6 +1500,11 @@ class gwnet(nn.Module):
         linear_out = self.linear(concat).view(64,256,207).unsqueeze(-1)
         # linear_handy = self.linear_hand(1 - F.softmax(self.shotest_path.view(1, 207, 207)))
         x = x + self.t_we * linear_out
+        residual_here = x
+        # torch.Size([64, 256, 207, 1])
+        x = self.bn_final(x.unsqueeze(-1)).squeeze(-1)
+        x += residual_here
+        # import pdb;pdb.set_trace()
         x = F.relu(self.end_conv_1(x))
         x = self.end_conv_2(x)
         return x

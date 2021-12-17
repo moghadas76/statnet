@@ -92,9 +92,9 @@ def main():
                          adjinit, centrality)
     # choices = list(pathlib.Path('./garage/').iterdir())
     
-    print(f"------------> start loading {str('./garage/metr_epoch_&94_2.77sp_st.pth')}",flush=True)
+    # print(f"------------> start loading {str('./garage/metr_epoch_&69_2.8sp_st.pth')}",flush=True)
     # try:
-    #     engine.model.load_state_dict(torch.load(f"./garage/metr_epoch_&94_2.77sp_st.pth"))
+    #     engine.model.load_state_dict(torch.load(f"./garage/metr_epoch_&69_2.8sp_st.pth"))
     # except RuntimeError:
     #     pass
     print("start training...",flush=True)
@@ -166,10 +166,12 @@ def main():
         log = 'Epoch: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, Train RMSE: {:.4f}, Valid Loss: {:.4f}, Valid MAPE: {:.4f}, Valid RMSE: {:.4f}, Training Time: {:.4f}/epoch'
         print(log.format(i, mtrain_loss, mtrain_mape, mtrain_rmse, mvalid_loss, mvalid_mape, mvalid_rmse, (t2 - t1)),flush=True)
         torch.save(engine.model.state_dict(), args.save+"_epoch_&"+str(i)+"_"+str(round(mvalid_loss,2))+"sp_st.pth")
+        if i>70:
+            test_ds(dataloader, device, engine, scaler)
     # print("Average Training Time: {:.4f} secs/epoch".format(np.mean(train_time)))
     # print("Average Inference Time: {:.4f} secs".format(np.mean(val_time)))
     
-    # bestid = np.argmin(his_loss)
+    bestid = np.argmin(his_loss)
     
 
     # engine.model.load_state_dict(torch.load(args.save+"_epoch_"+str(bestid+1)+"_"+str(round(his_loss[bestid],2))+"sp_st.pth"))
@@ -177,6 +179,42 @@ def main():
 
 
 
+    # outputs = []
+    # realy = torch.Tensor(dataloader['y_test']).to(device)
+    # realy = realy.transpose(1,3)[:,0,:,:]
+
+    # for iter, (x, y) in enumerate(dataloader['test_loader'].get_iterator()):
+    #     testx = torch.Tensor(x).to(device)
+    #     testx = testx.transpose(1,3)
+    #     with torch.no_grad():
+    #         preds = engine.model(nn.functional.pad(testx,(1,0,0,0))).transpose(1,3)
+    #     outputs.append(preds.squeeze())
+
+    # yhat = torch.cat(outputs,dim=0)
+    # yhat = yhat[:realy.size(0),...]
+
+
+    # print("Training finished")
+    # # # print("The valid loss on best model is", str(round(his_loss[bestid],4)))
+
+
+    # amae = []
+    # amape = []
+    # armse = []
+    # for i in range(12):
+    #     pred = scaler.inverse_transform(yhat[:,:,i])
+    #     real = realy[:,:,i]
+    #     metrics = util.metric(pred,real)
+    #     log = 'Evaluate best model on test data for horizon {:d}, Test MAE: {:.4f}, Test MAPE: {:.4f}, Test RMSE: {:.4f}'
+    #     print(log.format(i+1, metrics[0], metrics[1], metrics[2]))
+    #     amae.append(metrics[0])
+    #     amape.append(metrics[1])
+    #     armse.append(metrics[2])
+
+    # log = 'On average over 12 horizons, Test MAE: {:.4f}, Test MAPE: {:.4f}, Test RMSE: {:.4f}'
+    # print(log.format(np.mean(amae),np.mean(amape),np.mean(armse)))
+
+def test_ds(dataloader, device, engine, scaler):
     outputs = []
     realy = torch.Tensor(dataloader['y_test']).to(device)
     realy = realy.transpose(1,3)[:,0,:,:]
@@ -211,8 +249,8 @@ def main():
 
     log = 'On average over 12 horizons, Test MAE: {:.4f}, Test MAPE: {:.4f}, Test RMSE: {:.4f}'
     print(log.format(np.mean(amae),np.mean(amape),np.mean(armse)))
-    # torch.save(engine.model.state_dict(), args.save+"_exp"+str(args.expid)+"_best_"+str(round(his_loss[bestid],2))+"sp.pth")
-    # torch.save(engine.model.state_dict(), args.save+"_exp"+str(args.expid)+"_best_2.81.pth")
+
+    
 
 
 

@@ -6,11 +6,16 @@ import time
 import util
 import matplotlib.pyplot as plt
 from engine import trainer
+import ray
+from ray import tune
+
+import matplotlib.pyplot as plt
+import matplotlib.style as style
+style.use("ggplot")
+
 # import wandb
 from model import *
-from ray import tune
-from ray.tune import CLIReporter
-from ray.tune.schedulers import ASHAScheduler
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--device',type=str,default='cuda:3',help='')
@@ -26,7 +31,7 @@ parser.add_argument('--nhid',type=int,default=32,help='')
 parser.add_argument('--in_dim',type=int,default=2,help='inputs dimension')
 parser.add_argument('--num_nodes',type=int,default=207,help='number of nodes')
 parser.add_argument('--batch_size',type=int,default=64,help='batch size')
-parser.add_argument('--learning_rate',type=float,default=0.003,help='learning rate')
+parser.add_argument('--learning_rate',type=float,default=0.0025,help='learning rate')
 parser.add_argument('--dropout',type=float,default=0.35,help='dropout rate')
 parser.add_argument('--weight_decay',type=float,default=0.0001,help='weight decay rate')
 parser.add_argument('--epochs',type=int,default=150,help='')
@@ -53,9 +58,9 @@ def floyd(G):
             for q in range(nV):
                 dist[p][q] = min(dist[p][q], dist[p][r] + dist[r][q])
     return dist
+    
 
-
-def main():
+def main(config):
     #set seed
     #torch.manual_seed(args.seed)
     #np.random.seed(args.seed)
@@ -90,21 +95,25 @@ def main():
     engine = trainer(scaler, args.in_dim, args.seq_length, args.num_nodes, args.nhid, args.dropout,
                          args.learning_rate, args.weight_decay, device, supports, args.gcn_bool, args.addaptadj,
                          adjinit, centrality)
-    # choices = list(pathlib.Path('./garage/').iterdir())
     
-    # print(f"------------> start loading {str('./garage/metr_epoch_&69_2.8sp_st.pth')}",flush=True)
+    # choices = list(pathlib.Path('./garage/').iterdir())
+    ray.shutdown()
+    ray.init(log_to_driver=False)
+    # chk = "metr_epoch_&85_2.78sp_st.pth"
+    # print(f"------------> start loading {str(f'./garage/{chk}')}",flush=True)
     # try:
-    #     engine.model.load_state_dict(torch.load(f"./garage/metr_epoch_&69_2.8sp_st.pth"))
+    #     engine.model.load_state_dict(torch.load(f"./garage/{chk}"))
     # except RuntimeError:
     #     pass
     print("start training...",flush=True)
     his_loss =[]
     val_time = []
     train_time = []
+    st_point = 1
 
     # wandb.watch(engine.model)
     
-    for i in range(1, 101):
+    for i in range(st_point, 60):
         #if i % 10 == 0:
             #lr = max(0.000002,args.learning_rate * (0.1 ** (i // 10)))
             #for g in engine.optimizer.param_groups:
@@ -119,7 +128,7 @@ def main():
             trainx= trainx.transpose(1, 3)
             trainy = torch.Tensor(y).to(device)
             trainy = trainy.transpose(1, 3)
-            metrics = engine.train(trainx, trainy[:,0,:,:])
+            metrics = engine.train(trainx, trainy[:,0,:,:], configs=config)
             train_loss.append(metrics[0])
             train_mape.append(metrics[1])
             train_rmse.append(metrics[2])
@@ -166,7 +175,7 @@ def main():
         log = 'Epoch: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, Train RMSE: {:.4f}, Valid Loss: {:.4f}, Valid MAPE: {:.4f}, Valid RMSE: {:.4f}, Training Time: {:.4f}/epoch'
         print(log.format(i, mtrain_loss, mtrain_mape, mtrain_rmse, mvalid_loss, mvalid_mape, mvalid_rmse, (t2 - t1)),flush=True)
         torch.save(engine.model.state_dict(), args.save+"_epoch_&"+str(i)+"_"+str(round(mvalid_loss,2))+"sp_st.pth")
-        if i>70:
+        if i>st_point -1:
             test_ds(dataloader, device, engine, scaler)
     # print("Average Training Time: {:.4f} secs/epoch".format(np.mean(train_time)))
     # print("Average Inference Time: {:.4f} secs".format(np.mean(val_time)))
@@ -224,6 +233,7 @@ def test_ds(dataloader, device, engine, scaler):
         testx = testx.transpose(1,3)
         with torch.no_grad():
             preds = engine.model(nn.functional.pad(testx,(1,0,0,0))).transpose(1,3)
+            # preds = engine.model(nn.functional.pad(testx,(1,0,0,0)))[0].transpose(1,3)
         outputs.append(preds.squeeze())
 
     yhat = torch.cat(outputs,dim=0)
@@ -256,6 +266,22 @@ def test_ds(dataloader, device, engine, scaler):
 
 if __name__ == "__main__":
     t1 = time.time()
-    main()
+    search_space = {
+    "lr": tune.loguniform(0.0001, 0.007),
+    "w_decay": tune.uniform(0.0001, 0.0009)
+    }
+    analysis = tune.run(
+        main, 
+        config=search_space, 
+        verbose=1,
+        name="train_gnn",  # This is used to specify the logging directory.
+        stop={"mean_loss": 2.73}  # This will stop the trial 
+    )
+    dfs = analysis.fetch_trial_dataframes()
+    ax = None
+    for d in dfs.values():
+        ax = d.plot("timestamp", "mean_accuracy", ax=ax, legend=False)
+    plt.xlabel("timestamp"); plt.ylabel("Test Accuracy"); 
+
     t2 = time.time()
     print("Total time spent: {:.4f}".format(t2-t1))

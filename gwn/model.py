@@ -1422,13 +1422,16 @@ class gwnet(nn.Module):
                                     kernel_size=(1,1),
                                     bias=True)
         
-        self.conv1_reg = torch.nn.Conv1d(1, 8, 10, stride=1)  # .to(device)
-        self.conv2_reg = torch.nn.Conv1d(8, 16, 10, stride=1)
-        self.bn1_reg = torch.nn.BatchNorm1d(8)
-        self.bn2_reg = torch.nn.BatchNorm1d(16)
-        self.embedding_dim = 100
-        self.dim_fc = 383552
-        self.bn3_reg = torch.nn.BatchNorm1d(self.embedding_dim)
+        # self.conv1_reg = torch.nn.Conv1d(1, 8, 10, stride=1)  # .to(device)
+        # self.conv2_reg = torch.nn.Conv1d(8, 16, 10, stride=1)
+        # self.bn1_reg = torch.nn.BatchNorm1d(8)
+        # self.bn2_reg = torch.nn.BatchNorm1d(16)
+        # self.embedding_dim = 100
+        # self.dim_fc = 26336 #  127 * 207
+
+
+        # self.bn3_reg = torch.nn.BatchNorm1d(self.embedding_dim)
+
         self.linear = nn.Linear(220,256)
         # self.linear2 = nn.Linear(256,256)
         # self.linear3 = nn.Linear(220,256)
@@ -1436,46 +1439,46 @@ class gwnet(nn.Module):
         # self.centrality_linear = nn.Parameter(F.softmax(torch.Tensor(centrality).to(device)).reshape(1,207,1), requires_grad=True)
         self.layer_norm = nn.LayerNorm([256, 207,1])
         # nn.init.constant_(self.centrality_linear, F.softmax(torch.Tensor(centrality)).reshape(1,207,1))
-        self.bn_final = nn.BatchNorm3d(256, device=device)
-        # Regularization
-        off_diag = np.ones([207, 207])
+        # self.bn_final = nn.BatchNorm3d(256, device=device)
+        # # Regularization
+        # off_diag = np.ones([207, 207])
 
-        def encode_onehot(labels):
-            classes = set(labels)
-            classes_dict = {c: np.identity(len(classes))[i, :] for i, c in
-                            enumerate(classes)}
-            labels_onehot = np.array(list(map(classes_dict.get, labels)),
-                                     dtype=np.int32)
-            return labels_onehot
+        # def encode_onehot(labels):
+        #     classes = set(labels)
+        #     classes_dict = {c: np.identity(len(classes))[i, :] for i, c in
+        #                     enumerate(classes)}
+        #     labels_onehot = np.array(list(map(classes_dict.get, labels)),
+        #                              dtype=np.int32)
+        #     return labels_onehot
 
-        rel_rec = np.array(encode_onehot(np.where(off_diag)[0]), dtype=np.float32)
-        rel_send = np.array(encode_onehot(np.where(off_diag)[1]), dtype=np.float32)
-        self.rel_rec = torch.FloatTensor(rel_rec).to(device)
-        self.rel_send = torch.FloatTensor(rel_send).to(device)
-        self.fc = torch.nn.Linear(self.dim_fc, self.embedding_dim)
-        self.fc_out = nn.Linear(self.embedding_dim * 2, self.embedding_dim)
-        self.fc_cat = nn.Linear(self.embedding_dim, 2)
+        # rel_rec = np.array(encode_onehot(np.where(off_diag)[0]), dtype=np.float32)
+        # rel_send = np.array(encode_onehot(np.where(off_diag)[1]), dtype=np.float32)
+        # self.rel_rec = torch.FloatTensor(rel_rec).to(device)
+        # self.rel_send = torch.FloatTensor(rel_send).to(device)
+        # self.fc = torch.nn.Linear(self.dim_fc, self.embedding_dim)
+        # self.fc_out = nn.Linear(self.embedding_dim * 2, self.embedding_dim)
+        # self.fc_cat = nn.Linear(self.embedding_dim, 2)
 
 
     def forward(self, input):
-        x = input.transpose(1, 0).view(207, 1, -1)
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.bn1(x)
-        # x = self.hidden_drop(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = self.bn2(x)
-        x = x.view(207, -1)
-        x = self.fc(x)
-        x = F.relu(x)
-        x = self.bn3(x)
-        receivers = torch.matmul(self.rel_rec, x)
-        senders = torch.matmul(self.rel_send, x)
-        x = torch.cat([senders, receivers], dim=1)
-        x = torch.relu(self.fc_out(x))
-        x = self.fc_cat(x)
-        ret = x
+        # x = input.transpose(1, 0).reshape(207, 1, -1)
+        # x = self.conv1_reg(x)
+        # x = F.relu(x)
+        # x = self.bn1_reg(x)
+        # # x = self.hidden_drop(x)
+        # x = self.conv2_reg(x)
+        # x = F.relu(x)
+        # x = self.bn2_reg(x)
+        # x = x.reshape(207, -1)
+        # x = self.fc(x)
+        # x = F.relu(x)
+        # x = self.bn3_reg(x)
+        # receivers = torch.matmul(self.rel_rec, x)
+        # senders = torch.matmul(self.rel_send, x)
+        # x = torch.cat([senders, receivers], dim=1)
+        # x = torch.relu(self.fc_out(x))
+        # x = self.fc_cat(x)
+        # ret = x
         tmp = torch.clone(input)
         in_len = input.size(3)
         if in_len<self.receptive_field:
@@ -1551,4 +1554,6 @@ class gwnet(nn.Module):
         # torch.Size([64, 256, 207, 1])
         x = F.relu(self.end_conv_1(x))
         x = self.end_conv_2(x)
-        return x, ret.softmax(-1)[:, 0].clone().reshape(207, -1)
+        # return x, ret.softmax(-1)[:, 0].clone().reshape(207, -1)
+        return x
+

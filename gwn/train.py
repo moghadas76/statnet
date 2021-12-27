@@ -31,7 +31,7 @@ parser.add_argument('--nhid',type=int,default=32,help='')
 parser.add_argument('--in_dim',type=int,default=2,help='inputs dimension')
 parser.add_argument('--num_nodes',type=int,default=207,help='number of nodes')
 parser.add_argument('--batch_size',type=int,default=64,help='batch size')
-parser.add_argument('--learning_rate',type=float,default=0.0025,help='learning rate')
+parser.add_argument('--learning_rate',type=float,default=0.003,help='learning rate')
 parser.add_argument('--dropout',type=float,default=0.35,help='dropout rate')
 parser.add_argument('--weight_decay',type=float,default=0.0001,help='weight decay rate')
 parser.add_argument('--epochs',type=int,default=150,help='')
@@ -60,7 +60,7 @@ def floyd(G):
     return dist
     
 
-def main(config):
+def main():
     #set seed
     #torch.manual_seed(args.seed)
     #np.random.seed(args.seed)
@@ -96,10 +96,7 @@ def main(config):
                          args.learning_rate, args.weight_decay, device, supports, args.gcn_bool, args.addaptadj,
                          adjinit, centrality)
     
-    # choices = list(pathlib.Path('./garage/').iterdir())
-    ray.shutdown()
-    ray.init(log_to_driver=False)
-    # chk = "metr_epoch_&85_2.78sp_st.pth"
+    # chk = "metr_epoch_&59_2.75sp_st.pth"
     # print(f"------------> start loading {str(f'./garage/{chk}')}",flush=True)
     # try:
     #     engine.model.load_state_dict(torch.load(f"./garage/{chk}"))
@@ -113,7 +110,7 @@ def main(config):
 
     # wandb.watch(engine.model)
     
-    for i in range(st_point, 60):
+    for i in range(st_point, 101):
         #if i % 10 == 0:
             #lr = max(0.000002,args.learning_rate * (0.1 ** (i // 10)))
             #for g in engine.optimizer.param_groups:
@@ -128,7 +125,7 @@ def main(config):
             trainx= trainx.transpose(1, 3)
             trainy = torch.Tensor(y).to(device)
             trainy = trainy.transpose(1, 3)
-            metrics = engine.train(trainx, trainy[:,0,:,:], configs=config)
+            metrics = engine.train(trainx, trainy[:,0,:,:])
             train_loss.append(metrics[0])
             train_mape.append(metrics[1])
             train_rmse.append(metrics[2])
@@ -266,22 +263,6 @@ def test_ds(dataloader, device, engine, scaler):
 
 if __name__ == "__main__":
     t1 = time.time()
-    search_space = {
-    "lr": tune.loguniform(0.0001, 0.007),
-    "w_decay": tune.uniform(0.0001, 0.0009)
-    }
-    analysis = tune.run(
-        main, 
-        config=search_space, 
-        verbose=1,
-        name="train_gnn",  # This is used to specify the logging directory.
-        stop={"mean_loss": 2.73}  # This will stop the trial 
-    )
-    dfs = analysis.fetch_trial_dataframes()
-    ax = None
-    for d in dfs.values():
-        ax = d.plot("timestamp", "mean_accuracy", ax=ax, legend=False)
-    plt.xlabel("timestamp"); plt.ylabel("Test Accuracy"); 
-
+    main()
     t2 = time.time()
     print("Total time spent: {:.4f}".format(t2-t1))

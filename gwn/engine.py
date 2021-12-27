@@ -1,9 +1,6 @@
 import torch.optim as optim
 from model import *
 import util
-from ray import tune
-from ray.tune import CLIReporter
-from ray.tune.schedulers import ASHAScheduler
 
 # sensor_ids, sensor_id_to_ind, adj_mx = util.load_adj("data/sensor_graph/adj_mx.pkl",args.adjtype)
 _,_, normalized = util.load_adj("data/sensor_graph/adj_mx.pkl", "normlap")
@@ -15,16 +12,15 @@ class trainer():
           in_dim=in_dim, out_dim=seq_length, residual_channels=nhid, 
           dilation_channels=nhid, skip_channels=nhid * 8, end_channels=nhid * 16, centrality=centrality)
         self.model.to(device)
-        
+        self.optimizer = optim.Adam(self.model.parameters(), lr=lrate, weight_decay=wdecay)
         self.loss = util.masked_mae
         self.scaler = scaler
         self.clip = 5
         self.adj_mx = torch.Tensor(normalized[0]).to(device)
         self.device = device
 
-    def train(self, input, real_val, configs):
+    def train(self, input, real_val):
         self.model.train()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=configs["lr"], weight_decay=configs["w_decay"])
         self.optimizer.zero_grad()
         input = nn.functional.pad(input,(1,0,0,0))
         output = self.model(input)
@@ -60,7 +56,6 @@ class trainer():
         # compute_loss = torch.nn.BCELoss()
         # loss_g = compute_loss(pred, true_label)
         loss = self.loss(predict, real, 0.0)
-        tune.report(mean_loss=loss)
         mape = util.masked_mape(predict,real,0.0).item()
         rmse = util.masked_rmse(predict,real,0.0).item()
         return loss.item(),mape,rmse

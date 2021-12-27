@@ -1458,6 +1458,8 @@ class gwnet(nn.Module):
         # self.fc = torch.nn.Linear(self.dim_fc, self.embedding_dim)
         # self.fc_out = nn.Linear(self.embedding_dim * 2, self.embedding_dim)
         # self.fc_cat = nn.Linear(self.embedding_dim, 2)
+        self.layer_norm_2 = nn.LayerNorm([256, 207,1])
+
 
 
     def forward(self, input):
@@ -1550,7 +1552,7 @@ class gwnet(nn.Module):
         concat = torch.cat((self.spatial_attention(tmp),ttt),1).view(64,207,220)
         linear_out = self.linear(concat).view(64,256,207).unsqueeze(-1)
         # linear_handy = self.linear_hand(1 - F.softmax(self.shotest_path.view(1, 207, 207)))
-        x = x + self.t_we * linear_out
+        x = x + self.t_we * self.layer_norm_2(linear_out)
         # torch.Size([64, 256, 207, 1])
         x = F.relu(self.end_conv_1(x))
         x = self.end_conv_2(x)
